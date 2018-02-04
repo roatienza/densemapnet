@@ -32,7 +32,7 @@ from densemapnet import DenseMapNet
 class Predictor(object):
     def __init__(self, settings=Settings()):
         self.settings = settings
-        self.predict_images()
+        self.mkdir_images()
         self.pdir = "dataset" 
         self.get_max_disparity()
         self.load_test_data()
@@ -55,9 +55,9 @@ class Predictor(object):
         self.dmin =  min(self.dmin, np.amin(self.test_dx))
         print("Max disparity: ", self.dmax)
         print("Min disparity: ", self.dmin)
-        self.test_dx = self.test_dx.astype('float32')
-        self.test_dx = np.reshape(self.test_dx, [-1, self.test_dx.shape[1],self.test_dx.shape[2],1])
-        self.test_dx = self.test_dx / self.dmax
+        self.test_dx = self.test_dx.astype('float32') / self.dmax
+        shape = [-1, self.test_dx.shape[1], self.test_dx.shape[2], 1]
+        self.test_dx = np.reshape(self.test_dx, shape)
 
     def load_test_data(self):
         filename = self.settings.dataset + ".test.left.npz"
@@ -66,6 +66,9 @@ class Predictor(object):
         filename = self.settings.dataset + ".test.right.npz"
         print("Loading... ", filename)
         self.test_rx = np.load(os.path.join(self.pdir, filename))['arr_0']
+
+        # self.test_lx = self.test_lx.astype('float32') / 255
+        # self.test_rx = self.test_rx.astype('float32') / 255
 
     def load_train_data(self, index):
         filename = self.settings.dataset + ".train.left.%d.npz" % index
@@ -80,10 +83,11 @@ class Predictor(object):
         print("Loading... ", filename)
         self.train_dx = np.load(os.path.join(self.pdir, filename))['arr_0']
 
-        self.train_lx = self.train_lx.astype('float32') / 255
-        self.train_rx = self.train_rx.astype('float32') / 255
+        # self.train_lx = self.train_lx.astype('float32') / 255
+        # self.train_rx = self.train_rx.astype('float32') / 255
         self.train_dx = self.train_dx.astype('float32') / self.dmax
-        self.train_dx = np.reshape(self.train_dx, [-1, self.train_dx.shape[1],self.train_dx.shape[2],1])
+        shape =  [-1, self.train_dx.shape[1], self.train_dx.shape[2], 1]
+        self.train_dx = np.reshape(self.train_dx, shape)
 
         self.channels = self.settings.channels = self.train_lx.shape[3]
         self.xdim = self.settings.xdim = self.train_lx.shape[2]
@@ -92,9 +96,14 @@ class Predictor(object):
     def train_network(self):
         # train in batch of decreasing number of epochs (8, 4, 2, 1)
         self.train_batch(epochs=1)
+        self.predict_disparity()
         for i in range(3, -1, -1):
             epochs = 2 ** i
             self.train_batch(epochs=epochs)
+            self.predict_disparity()
+        
+        for i in range(100):
+            self.train_batch(epochs=1)
             self.predict_disparity()
 
     def train_batch(self, epochs=10):
@@ -110,10 +119,13 @@ class Predictor(object):
             # self.t1 = 0
             # self.s2 = 0
             # self.t2 = 0
-            # self.j = i
-            filename = self.settings.dataset + ".densemapnet.weights.{epoch:02d}.h5"
+            filename = self.settings.dataset
+            filename += ".densemapnet.weights.{epoch:02d}.h5"
             filepath = os.path.join(checkdir, filename)
-            checkpoint = ModelCheckpoint(filepath=filepath, save_weights_only=True, verbose=1, save_best_only=False)
+            checkpoint = ModelCheckpoint(filepath=filepath,
+                                         save_weights_only=True,
+                                         verbose=1,
+                                         save_best_only=False)
             # predict_callback = LambdaCallback(on_epoch_end=lambda epoch, logs: self.predict_disparity())
             # callbacks = [checkpoint, predict_callback]
             callbacks = [checkpoint]
@@ -135,12 +147,12 @@ class Predictor(object):
             # fd.write(log)
             # fd.close()
 
-    def predict_images(self):
-        pdir = "images"
+    def mkdir_images(self):
+        self.images_pdir = "images"
+        pdir = self.images_pdir
 
         for dirname in ["train", "test"]:
             cdir = os.path.join(pdir, dirname)
-
             filepath = os.path.join(cdir, "left")
             os.makedirs(filepath, exist_ok=True)
             filepath = os.path.join(cdir, "right")
@@ -183,6 +195,21 @@ class Predictor(object):
 
             a = predicted_disparity[0, :, :, :]
             b = disparity_images[0, :, :, :]
+            path = "test"
+            if use_train_data:
+                path = "train"
+            filepath  = os.path.join(self.images_pdir, path)
+            left = os.path.join(filepath, "left")
+            right = os.path.join(filepath, "right")
+            disparity = os.path.join(filepath, "disparity")
+            prediction = os.path.join(filepath, "prediction")
+            if i == 10:
+                left = os.path.join(left, "out.png")
+                plt.imsave(left, left_images[0])
+                right = os.path.join(right, "out.png")
+                plt.imsave(right, right_images[0])
+                self.predict_images(a, os.path.join(prediction, "out.png"))
+                self.predict_images(b, os.path.join(disparity, "out.png"))
             ab = a - b
             dim = a.shape[0] * a.shape[1]
             # normalized error on all pixels
@@ -197,6 +224,13 @@ class Predictor(object):
         pix_epe = epe * self.dmax
         print("EPE: %f %fpix" % (epe, pix_epe))
 
+    def predict_images(self, image, filepath):
+        size = [image.shape[0], image.shape[1]]
+        image =  np.clip(image, 0.0, 1.0)
+        image *= 255
+        image = image.astype(np.uint8)
+        image = np.reshape(image, size)
+        misc.imsave(filepath, image)
 
     def predict_disparity(self):
 

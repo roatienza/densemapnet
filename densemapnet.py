@@ -125,7 +125,7 @@ class DenseMapNet(object):
             self.model.load_weights(self.settings.model_weights)
 
         self.model.compile(loss='binary_crossentropy',
-                           optimizer=RMSprop(lr=1e-4,decay=1e-6))
+                           optimizer=RMSprop(lr=1e-3,decay=1e-6))
         print("DenseMapNet Model:")
         self.model.summary()
 
