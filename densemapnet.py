@@ -46,8 +46,6 @@ class DenseMapNet(object):
 
         # left image as reference
         x = Conv2D(filters=16, kernel_size=5, padding='same')(left)
-        xleft = BatchNormalization()(x)
-        xleft = Activation('relu', name='xleft')(xleft)
         xleft = Conv2D(filters=1,
                        kernel_size=5,
                        padding='same',
@@ -123,12 +121,11 @@ class DenseMapNet(object):
        
         if self.settings.model_weights:
             print("Loading checkpoint model weights %s...."
-                  % self.settings.load_weights)
+                  % self.settings.model_weights)
             self.model.load_weights(self.settings.model_weights)
 
         self.model.compile(loss='binary_crossentropy',
-                           optimizer=RMSprop(lr=1e-4,decay=1e-6),
-                           metrics=['accuracy'])
+                           optimizer=RMSprop(lr=1e-4,decay=1e-6))
         print("DenseMapNet Model:")
         self.model.summary()
 

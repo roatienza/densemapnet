@@ -23,7 +23,6 @@ from os import path
 import matplotlib.image as img
 import matplotlib.pyplot as plt
 from scipy import misc
-import gc
 
 from utils import Settings
 from utils import ElapsedTimer
@@ -33,6 +32,7 @@ from densemapnet import DenseMapNet
 class Predictor(object):
     def __init__(self, settings=Settings()):
         self.settings = settings
+        self.predict_images()
         self.pdir = "dataset" 
         self.get_max_disparity()
         self.load_test_data()
@@ -68,11 +68,6 @@ class Predictor(object):
         self.test_rx = np.load(os.path.join(self.pdir, filename))['arr_0']
 
     def load_train_data(self, index):
-        self.train_lx = None
-        self.train_rx = None
-        self.train_dx = None
-        gc.collect()
-
         filename = self.settings.dataset + ".train.left.%d.npz" % index
         print("Loading... ", filename)
         self.train_lx = np.load(os.path.join(self.pdir, filename))['arr_0']
@@ -85,16 +80,18 @@ class Predictor(object):
         print("Loading... ", filename)
         self.train_dx = np.load(os.path.join(self.pdir, filename))['arr_0']
 
-        self.train_dx = self.train_dx.astype('float32')
+        self.train_lx = self.train_lx.astype('float32') / 255
+        self.train_rx = self.train_rx.astype('float32') / 255
+        self.train_dx = self.train_dx.astype('float32') / self.dmax
         self.train_dx = np.reshape(self.train_dx, [-1, self.train_dx.shape[1],self.train_dx.shape[2],1])
-        self.train_dx = self.train_dx / self.dmax
 
+        self.channels = self.settings.channels = self.train_lx.shape[3]
         self.xdim = self.settings.xdim = self.train_lx.shape[2]
         self.ydim = self.settings.ydim = self.train_lx.shape[1]
-        self.channels = self.settings.channels = self.train_lx.shape[3]
 
     def train_network(self):
         # train in batch of decreasing number of epochs (8, 4, 2, 1)
+        self.train_batch(epochs=1)
         for i in range(3, -1, -1):
             epochs = 2 ** i
             self.train_batch(epochs=epochs)
@@ -103,14 +100,19 @@ class Predictor(object):
     def train_batch(self, epochs=10):
         count = self.settings.num_dataset + 1
         checkdir = "checkpoint"
-        os.mkdir(checkdir)
+        try:
+            os.mkdir(checkdir)
+        except FileExistsError:
+            print("Folder exists: ", checkdir)
+            
         for i in range(1, count, 1):
             # self.s1 = 0
             # self.t1 = 0
             # self.s2 = 0
             # self.t2 = 0
             # self.j = i
-            filepath = os.path.join(checkdir, "densemapnet_weights.{epoch:02d}.h5")
+            filename = self.settings.dataset + ".densemapnet.weights.{epoch:02d}.h5"
+            filepath = os.path.join(checkdir, filename)
             checkpoint = ModelCheckpoint(filepath=filepath, save_weights_only=True, verbose=1, save_best_only=False)
             # predict_callback = LambdaCallback(on_epoch_end=lambda epoch, logs: self.predict_disparity())
             # callbacks = [checkpoint, predict_callback]
@@ -133,19 +135,21 @@ class Predictor(object):
             # fd.write(log)
             # fd.close()
 
-    def mkdirs(self, pdir):
-        filepath = os.path.join(pdir, "train_left")
-        os.makedirs(os.path.dirname(filepath))
-        filepath = os.path.join(pdir, "train_right")
-        os.makedirs(os.path.dirname(filepath))
-        filepath = os.path.join(pdir, "train_ground")
-        os.makedirs(os.path.dirname(filepath))
-        filepath = os.path.join(pdir, "test_left")
-        os.makedirs(os.path.dirname(filepath))
-        filepath = os.path.join(pdir, "test_right")
-        os.makedirs(os.path.dirname(filepath))
-        filepath = os.path.join(pdir, "test_ground")
-        os.makedirs(os.path.dirname(filepath))
+    def predict_images(self):
+        pdir = "images"
+
+        for dirname in ["train", "test"]:
+            cdir = os.path.join(pdir, dirname)
+
+            filepath = os.path.join(cdir, "left")
+            os.makedirs(filepath, exist_ok=True)
+            filepath = os.path.join(cdir, "right")
+            os.makedirs(filepath, exist_ok=True)
+            filepath = os.path.join(cdir, "disparity")
+            os.makedirs(filepath, exist_ok=True)
+            filepath = os.path.join(cdir, "prediction")
+            os.makedirs(filepath, exist_ok=True)
+
 
     def get_epe(self, use_train_data=True):
         if use_train_data:
