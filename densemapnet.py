@@ -34,10 +34,7 @@ class DenseMapNet(object):
         self.channels = self.settings.channels
         self.model = None
 
-    def build_model(self):
-        if self.model:
-            return self.model
-
+    def build_model(self, lr=1e-3):
         dropout = 0.2
 
         shape=(None, self.ydim, self.xdim, self.channels)
@@ -125,7 +122,7 @@ class DenseMapNet(object):
             self.model.load_weights(self.settings.model_weights)
 
         self.model.compile(loss='binary_crossentropy',
-                           optimizer=RMSprop(lr=1e-3,decay=1e-6))
+                           optimizer=RMSprop(lr=lr))
         print("DenseMapNet Model:")
         self.model.summary()
 

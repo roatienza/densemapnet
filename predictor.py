@@ -14,6 +14,7 @@ from __future__ import print_function
 
 import keras
 from keras.callbacks import ModelCheckpoint, LambdaCallback
+from keras.optimizers import RMSprop
 
 import numpy as np
 
@@ -36,7 +37,7 @@ class Predictor(object):
         self.pdir = "dataset" 
         self.get_max_disparity()
         self.load_test_data()
-        self.model = None
+        self.network  = None
 
     def get_max_disparity(self):
         self.dmax = 0
@@ -94,25 +95,22 @@ class Predictor(object):
         self.ydim = self.settings.ydim = self.train_lx.shape[1]
 
     def train_network(self):
-        # train in batch of decreasing number of epochs (8, 4, 2, 1)
-        self.train_batch(epochs=1)
-        self.predict_disparity()
-        for i in range(3, -1, -1):
-            epochs = 2 ** i
-            self.train_batch(epochs=epochs)
-            self.predict_disparity()
-        
-        for i in range(100):
-            self.train_batch(epochs=1)
-            self.predict_disparity()
+        lr = 0.5e-2
+        for i in range(5):
+            lr = lr / 5
+            for j in range(20):
+                self.train_batch(epochs=1, lr=lr)
+                self.predict_disparity()
 
-    def train_batch(self, epochs=10):
+    def train_batch(self, epochs=10, lr=1e-3):
         count = self.settings.num_dataset + 1
         checkdir = "checkpoint"
         try:
             os.mkdir(checkdir)
         except FileExistsError:
             print("Folder exists: ", checkdir)
+
+        is_model_compiled = False
             
         for i in range(1, count, 1):
             # self.s1 = 0
@@ -130,11 +128,16 @@ class Predictor(object):
             # callbacks = [checkpoint, predict_callback]
             callbacks = [checkpoint]
             self.load_train_data(i)
-            x = [self.train_lx, self.train_rx]
-            if self.model is None:
+            if self.network is None:
                 self.network = DenseMapNet(settings=self.settings)
-                self.model = self.network.build_model()
+                self.model = self.network.build_model(lr=lr)
 
+            if not is_model_compiled:
+                self.model.compile(loss='binary_crossentropy',
+                                   optimizer=RMSprop(lr=lr))
+                is_model_compiled = True
+
+            x = [self.train_lx, self.train_rx]
             self.model.fit(x, self.train_dx, epochs=epochs, batch_size=4, shuffle=True, callbacks=callbacks)
         
             # ave = self.s1/self.t1
