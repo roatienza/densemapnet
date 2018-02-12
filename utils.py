@@ -17,8 +17,11 @@ class ElapsedTimer(object):
             sec = "%0.4f" % (sec / (60 * 60))
             return sec + " hr"
     def elapsed_time(self):
-        print("Speed: %s " % self.elapsed(time.time() - self.start_time))
+        delta = time.time() - self.start_time
+        return delta
 
+    def print_elapsed_time(self):
+        print("Speed: %s " % self.elapsed(self.elapsed_time()))
 
 class Settings(object):
     def __init__(self):
