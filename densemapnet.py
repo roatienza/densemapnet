@@ -97,7 +97,8 @@ class DenseMapNet(object):
         x = Activation('relu')(x)
         x = Conv2D(filters=32, kernel_size=1, padding='same')(x)
         x = UpSampling2D(8)(x)
-        x = ZeroPadding2D(padding=(2, 0))(x)
+        if not self.settings.nopadding:
+            x = ZeroPadding2D(padding=(2, 0))(x)
 
         # left image skip connection to disparity estimate
         x = keras.layers.concatenate([x, xleft])

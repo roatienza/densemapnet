@@ -39,6 +39,7 @@ class Predictor(object):
         self.get_max_disparity()
         self.load_test_data()
         self.network  = None
+        self.train_data_loaded = False
 
     def load_test_disparity(self):
         filename = self.settings.dataset + ".test.disparity.npz"
@@ -109,18 +110,55 @@ class Predictor(object):
         self.channels = self.settings.channels = self.train_lx.shape[3]
         self.xdim = self.settings.xdim = self.train_lx.shape[2]
         self.ydim = self.settings.ydim = self.train_lx.shape[1]
+        self.train_data_loaded = True
 
     def train_network(self):
+        if self.settings.num_dataset == 1:
+            self.train_all()
+            return
+
         lr = 0.5e-2
-        if self.settings.model_weights:
+        # if self.settings.model_weights:
             # if not starting from scratch, better to start at a lower lr
-            lr = 0.5e-4
+            # lr = 0.5e-4
 
         for i in range(5):
             lr = lr / 5
             for j in range(20):
                 self.train_batch(epochs=1, lr=lr)
                 self.predict_disparity()
+
+    def train_all(self, epochs=400, lr=1e-3):
+        checkdir = "checkpoint"
+        try:
+            os.mkdir(checkdir)
+        except FileExistsError:
+            print("Folder exists: ", checkdir)
+
+        filename = self.settings.dataset
+        filename += ".densemapnet.weights.{epoch:02d}.h5"
+        filepath = os.path.join(checkdir, filename)
+        checkpoint = ModelCheckpoint(filepath=filepath,
+                                     save_weights_only=True,
+                                     verbose=1,
+                                     save_best_only=False)
+        predict_callback = LambdaCallback(on_epoch_end=lambda epoch, logs: self.predict_disparity())
+        callbacks = [checkpoint, predict_callback]
+        self.load_train_data(1)
+        if self.network is None:
+            self.network = DenseMapNet(settings=self.settings)
+            self.model = self.network.build_model(lr=lr)
+
+        self.model.compile(loss='binary_crossentropy',
+                           optimizer=RMSprop(lr=lr, decay=1e-6))
+
+        if self.settings.model_weights:
+            if self.settings.notrain:
+                self.predict_disparity()
+                return
+
+        x = [self.train_lx, self.train_rx]
+        self.model.fit(x, self.train_dx, epochs=epochs, batch_size=4, shuffle=True, callbacks=callbacks)
 
     def train_batch(self, epochs=10, lr=1e-3):
         count = self.settings.num_dataset + 1
@@ -143,7 +181,8 @@ class Predictor(object):
             # predict_callback = LambdaCallback(on_epoch_end=lambda epoch, logs: self.predict_disparity())
             # callbacks = [checkpoint, predict_callback]
             callbacks = [checkpoint]
-            self.load_train_data(i)
+            if not (self.train_data_loaded and count == 2):
+                self.load_train_data(i)
             if self.network is None:
                 self.network = DenseMapNet(settings=self.settings)
                 self.model = self.network.build_model(lr=lr)
@@ -154,7 +193,9 @@ class Predictor(object):
                 is_model_compiled = True
 
             if self.settings.model_weights:
-                self.predict_disparity()
+                if self.settings.notrain:
+                    self.predict_disparity()
+                    return
 
             x = [self.train_lx, self.train_rx]
             self.model.fit(x, self.train_dx, epochs=epochs, batch_size=4, shuffle=True, callbacks=callbacks)
@@ -212,16 +253,24 @@ class Predictor(object):
                 predicted_disparity = self.model.predict([left_images, right_images])
 
             predicted = predicted_disparity[0, :, :, :]
+            if self.settings.dataset == "kitti2015":
+                ground_mask = np.ceil(disparity_images[0, :, :, :])
+                predicted = np.multiply(predicted, ground_mask)
+
             ground = disparity_images[0, :, :, :]
             epe = predicted - ground
-            dim = predicted.shape[0] * predicted.shape[1]
+            if self.settings.dataset == "kitti2015":
+                dim = np.count_nonzero(ground_mask)
+            else:
+                dim = predicted.shape[0] * predicted.shape[1]
             # normalized error on all pixels
             epe = np.sum(np.absolute(epe))
             epe = epe.astype('float32')
             epe = epe / dim
             epe_total += epe
 
-            if get_performance and self.settings.images:
+            # if get_performance and self.settings.images:
+            if i == 10: 
                 path = "test"
                 if use_train_data:
                     path = "train"
@@ -240,7 +289,10 @@ class Predictor(object):
 
         epe = epe_total / nsamples 
         # epe in pix units
-        print("EPE: %0.2fpix" % (epe * self.dmax))
+        epe = epe * self.dmax
+        if self.settings.dataset == "kitti2015":
+            epe = epe / 256.0
+        print("EPE: %0.2fpix" % epe)
         # speed in sec
         if get_performance:
             print("Speed: %0.4fsec" % (elapsed_total / nsamples))
@@ -265,8 +317,12 @@ class Predictor(object):
             for i in range(4):
                 self.get_epe(use_train_data=False, get_performance=True)
         else:
-            self.get_epe(use_train_data=False)
-            self.get_epe()
+            # self.settings.images = True
+            self.get_epe(use_train_data=False, get_performance=True)
+            # self.get_epe(use_train_data=False)
+            return
+            if not self.settings.notrain:
+                self.get_epe()
 
 
 if __name__ == '__main__':
@@ -292,6 +348,11 @@ if __name__ == '__main__':
                         "--images",
                         action='store_true',
                         help=help_)
+    help_ = "No training. EPE benchmarking on test set. Must load weights."
+    parser.add_argument("-t",
+                        "--notrain",
+                        action='store_true',
+                        help=help_)
     
     
     args = parser.parse_args()
@@ -301,6 +362,11 @@ if __name__ == '__main__':
     settings.num_dataset = args.num_dataset
     settings.predict = args.predict
     settings.images = args.images
+    settings.notrain = args.notrain
+    if settings.dataset == "kitti2015":
+        settings.nopadding = True
+    else:
+        settings.nopadding = False
 
     predictor = Predictor(settings=settings)
     if settings.predict:
