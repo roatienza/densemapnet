@@ -184,6 +184,9 @@ class Predictor(object):
                                          verbose=1,
                                          save_best_only=False)
             callbacks = [checkpoint]
+
+            self.load_train_data(i)
+
             if self.network is None:
                 self.network = DenseMapNet(settings=self.settings)
                 self.model = self.network.build_model(lr=lr)
