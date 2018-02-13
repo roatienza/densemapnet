@@ -101,8 +101,6 @@ class Predictor(object):
         print("Loading... ", filename)
         self.train_dx = np.load(os.path.join(self.pdir, filename))['arr_0']
 
-        # self.train_lx = self.train_lx.astype('float32') / 255
-        # self.train_rx = self.train_rx.astype('float32') / 255
         self.train_dx = self.train_dx.astype('float32') / self.dmax
         shape =  [-1, self.train_dx.shape[1], self.train_dx.shape[2], 1]
         self.train_dx = np.reshape(self.train_dx, shape)
@@ -117,16 +115,16 @@ class Predictor(object):
             self.train_all()
             return
 
-        lr = 0.5e-2
         # if self.settings.model_weights:
             # if not starting from scratch, better to start at a lower lr
             # lr = 0.5e-4
 
-        for i in range(5):
-            lr = lr / 5
-            for j in range(20):
-                self.train_batch(epochs=1, lr=lr)
-                self.predict_disparity()
+        decay = 1e-6
+        lr = 1e-3 + decay
+        for i in range(400):
+            lr = lr - decay
+            self.train_batch(epochs=1, lr=lr)
+            self.predict_disparity()
 
     def train_all(self, epochs=400, lr=1e-3):
         checkdir = "checkpoint"
@@ -142,7 +140,8 @@ class Predictor(object):
                                      save_weights_only=True,
                                      verbose=1,
                                      save_best_only=False)
-        predict_callback = LambdaCallback(on_epoch_end=lambda epoch, logs: self.predict_disparity())
+        predict_callback = LambdaCallback(on_epoch_end=lambda epoch,
+                                          logs: self.predict_disparity())
         callbacks = [checkpoint, predict_callback]
         self.load_train_data(1)
         if self.network is None:
@@ -158,7 +157,12 @@ class Predictor(object):
                 return
 
         x = [self.train_lx, self.train_rx]
-        self.model.fit(x, self.train_dx, epochs=epochs, batch_size=4, shuffle=True, callbacks=callbacks)
+        self.model.fit(x,
+                       self.train_dx,
+                       epochs=epochs,
+                       batch_size=4,
+                       shuffle=True,
+                       callbacks=callbacks)
 
     def train_batch(self, epochs=10, lr=1e-3):
         count = self.settings.num_dataset + 1
@@ -178,11 +182,7 @@ class Predictor(object):
                                          save_weights_only=True,
                                          verbose=1,
                                          save_best_only=False)
-            # predict_callback = LambdaCallback(on_epoch_end=lambda epoch, logs: self.predict_disparity())
-            # callbacks = [checkpoint, predict_callback]
             callbacks = [checkpoint]
-            if not (self.train_data_loaded and count == 2):
-                self.load_train_data(i)
             if self.network is None:
                 self.network = DenseMapNet(settings=self.settings)
                 self.model = self.network.build_model(lr=lr)
@@ -198,7 +198,12 @@ class Predictor(object):
                     return
 
             x = [self.train_lx, self.train_rx]
-            self.model.fit(x, self.train_dx, epochs=epochs, batch_size=4, shuffle=True, callbacks=callbacks)
+            self.model.fit(x,
+                           self.train_dx,
+                           epochs=epochs,
+                           batch_size=4,
+                           shuffle=True,
+                           callbacks=callbacks)
 
     def mkdir_images(self):
         self.images_pdir = "images"
@@ -269,8 +274,8 @@ class Predictor(object):
             epe = epe / dim
             epe_total += epe
 
-            # if get_performance and self.settings.images:
-            if i == 10: 
+            # if i == 10: 
+            if get_performance and self.settings.images:
                 path = "test"
                 if use_train_data:
                     path = "train"
@@ -312,7 +317,7 @@ class Predictor(object):
                 self.network = DenseMapNet(settings=self.settings)
                 self.model = self.network.build_model()
             # gpu is slow in prediction during initial load of data
-            # distorting the true speed of network
+            # distorting the true speed of the network
             # we get the speed after 1 prediction
             for i in range(4):
                 self.get_epe(use_train_data=False, get_performance=True)
