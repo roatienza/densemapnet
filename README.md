@@ -13,7 +13,12 @@ Copy on the directory of `densemapnet`.
 
 Extract `tar jxvf dataset.tar.bz2`
 
-At the moment, only Driving dataset is available. Additional datasets will be available in the future.
+Available datasets:
+
+1. `driving` - [Driving](https://lmb.informatik.uni-freiburg.de/resources/datasets/SceneFlowDatasets.en.html) 
+2. `mpi` - [MPI Sintel](http://sintel.is.tue.mpg.de/)
+
+Additional datasets will be available in the future.
 
 ## Training
 Unlike  the test data, training data is split into 4 files. To train the network execute:
@@ -34,7 +39,7 @@ To benchmark speed only:
 
 `python3 predictor.py --dataset=driving --num_dataset=4 --weights=checkpoint/driving.densemapnet.weights.h5 --predict`
 
-To benchmark speed and generate disparity predictions on both train and test datasets:
+To generate disparity predictions on both train and test datasets (complete sequential images used to create the video):
 
 `python3 predictor.py --dataset=driving --num_dataset=4 --weights=checkpoint/driving.densemapnet.weights.h5 --predict
 --images`
