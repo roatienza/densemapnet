@@ -51,6 +51,7 @@ class Predictor(object):
         print("Min disparity: ", self.dmin)
         if self.settings.predict:
             filename = self.settings.dataset + "_complete.test.disparity.npz"
+            print("Loading... ", filename)
             self.test_dx = np.load(os.path.join(self.pdir, filename))['arr_0']
 
         self.test_dx = self.test_dx.astype('float32') / self.dmax
@@ -226,15 +227,15 @@ class Predictor(object):
             lx = self.train_lx
             rx = self.train_rx
             dx = self.train_dx
-            print("Using train data...")
+            print("Using train data... Size: ", lx.shape[0])
         else:
             lx = self.test_lx
             rx = self.test_rx
             dx = self.test_dx
             if self.settings.predict:
-                print("Using complete data...")
+                print("Using complete data... Size: ", lx.shape[0])
             else:
-                print("Using test data...")
+                print("Using test data... Size: ", lx.shape[0])
 
         # sum of all errors (normalized)
         epe_total = 0
@@ -319,14 +320,16 @@ class Predictor(object):
             # gpu is slow in prediction during initial load of data
             # distorting the true speed of the network
             # we get the speed after 1 prediction
-            for i in range(4):
+            if self.settings.images:
                 self.get_epe(use_train_data=False, get_performance=True)
+            else:
+                for i in range(4):
+                    self.get_epe(use_train_data=False, get_performance=True)
         else:
             # self.settings.images = True
             self.get_epe(use_train_data=False, get_performance=True)
             # self.get_epe(use_train_data=False)
-            return
-            if not self.settings.notrain:
+            if self.settings.notrain:
                 self.get_epe()
 
 
