@@ -124,7 +124,7 @@ class Predictor(object):
         lr = 1e-3 + decay
         for i in range(400):
             lr = lr - decay
-            self.train_batch(epochs=1, lr=lr)
+            self.train_batch(epochs=1, lr=lr, seq=i)
             self.predict_disparity()
 
     def train_all(self, epochs=400, lr=1e-3):
@@ -165,7 +165,7 @@ class Predictor(object):
                        shuffle=True,
                        callbacks=callbacks)
 
-    def train_batch(self, epochs=10, lr=1e-3):
+    def train_batch(self, epochs=10, lr=1e-3, seq=1):
         count = self.settings.num_dataset + 1
         checkdir = "checkpoint"
         try:
@@ -177,7 +177,8 @@ class Predictor(object):
             
         for i in range(1, count, 1):
             filename = self.settings.dataset
-            filename += ".densemapnet.weights.{epoch:02d}.h5"
+            # filename += ".densemapnet.weights.{epoch:02d}.h5"
+            filename += ".densemapnet.weights.%d-%d.h5" % (seq, i)
             filepath = os.path.join(checkdir, filename)
             checkpoint = ModelCheckpoint(filepath=filepath,
                                          save_weights_only=True,
