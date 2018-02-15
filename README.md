@@ -23,7 +23,9 @@ Available datasets:
 Additional datasets will be available in the future.
 
 ## Training
-Unlike  the test data, training data is split into 4 files. To train the network execute:
+In some datasets, the train data is split into multiple files. For example, `driving` is split into 4 files while `mpi` fits into 1 file.
+
+To train the network execute:
 
 `python3 predictor.py --dataset=driving --num_dataset=4`
 
