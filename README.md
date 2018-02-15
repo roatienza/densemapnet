@@ -13,7 +13,7 @@ Please download the dataset:
 
 Copy on the directory of `densemapnet/dataset`.
 
-Extract `tar jxvf driving.tar.bz2`
+Extract: `tar jxvf driving.tar.bz2`
 
 Available datasets:
 
