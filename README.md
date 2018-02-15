@@ -7,11 +7,13 @@ Sample predictions on different datasets:
 ![alt text](https://github.com/roatienza/densemapnet/blob/master/media/Driving.png "Sample predictions")
 
 ## Dataset
-Please download the dataset from [here](https://drive.google.com/file/d/1zifkJ0duFQAmfZhrr_sOkxOE6qxOc1sT/view?usp=sharing)
+Please download the dataset:
+1. [`driving`](https://drive.google.com/file/d/1q01ffNwvnZkrdw58_LIX-tf-vkzsGGmI/view?usp=sharing)
+2. [`mpi`](https://drive.google.com/file/d/1mntUmDxpmCPafYh9nCDWPgT6JyzVovDK/view?usp=sharing)
 
-Copy on the directory of `densemapnet`.
+Copy on the directory of `densemapnet/dataset`.
 
-Extract `tar jxvf dataset.tar.bz2`
+Extract `tar jxvf driving.tar.bz2`
 
 Available datasets:
 
