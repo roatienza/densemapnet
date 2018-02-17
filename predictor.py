@@ -47,14 +47,27 @@ class Predictor(object):
         self.test_dx = np.load(os.path.join(self.pdir, filename))['arr_0']
         self.dmax =  max(self.dmax, np.amax(self.test_dx))
         self.dmin =  min(self.dmin, np.amin(self.test_dx))
-        print("Max disparity: ", self.dmax)
-        print("Min disparity: ", self.dmin)
+        print("Max disparity on entire dataset: ", self.dmax)
+        print("Min disparity on entire dataset: ", self.dmin)
         if self.settings.predict:
             filename = self.settings.dataset + "_complete.test.disparity.npz"
             print("Loading... ", filename)
             self.test_dx = np.load(os.path.join(self.pdir, filename))['arr_0']
 
-        self.test_dx = self.test_dx.astype('float32') / self.dmax
+        if self.settings.otanh:
+            self.dmax *= 0.5 
+            print("Max disparity for tanh: ", self.dmax)
+            self.test_dx = self.test_dx.astype('float32') - self.dmax
+            self.test_dx = self.test_dx.astype('float32') / self.dmax
+            print("Scaled disparity max: ", np.amax(self.test_dx))
+            print("Scaled disparity min: ", np.amin(self.test_dx))
+            self.test_dx =  np.clip(self.test_dx, -1.0, 1.0)
+        else:
+            self.test_dx = self.test_dx.astype('float32') / self.dmax
+            print("Scaled disparity max: ", np.amax(self.test_dx))
+            print("Scaled disparity min: ", np.amin(self.test_dx))
+            self.test_dx =  np.clip(self.test_dx, 0.0, 1.0)
+
         shape = [-1, self.test_dx.shape[1], self.test_dx.shape[2], 1]
         self.test_dx = np.reshape(self.test_dx, shape)
 
@@ -102,7 +115,17 @@ class Predictor(object):
         print("Loading... ", filename)
         self.train_dx = np.load(os.path.join(self.pdir, filename))['arr_0']
 
-        self.train_dx = self.train_dx.astype('float32') / self.dmax
+        if self.settings.otanh:
+            self.train_dx = self.train_dx.astype('float32') - self.dmax
+            self.train_dx = self.train_dx.astype('float32') / self.dmax
+            print("Scaled disparity max: ", np.amax(self.train_dx))
+            print("Scaled disparity min: ", np.amin(self.train_dx))
+            self.train_dx = np.clip(self.train_dx, -1.0, 1.0)
+        else:
+            self.train_dx = self.train_dx.astype('float32') / self.dmax
+            print("Scaled disparity max: ", np.amax(self.train_dx))
+            print("Scaled disparity min: ", np.amin(self.train_dx))
+            self.train_dx = np.clip(self.train_dx, 0.0, 1.0)
         shape =  [-1, self.train_dx.shape[1], self.train_dx.shape[2], 1]
         self.train_dx = np.reshape(self.train_dx, shape)
 
@@ -121,10 +144,11 @@ class Predictor(object):
             # lr = 0.5e-4
 
         decay = 1e-6
-        lr = 1e-3 + decay
+        epochs = 1
+        lr = 1e-3 + decay - (28 * decay)
         for i in range(400):
-            lr = lr - decay
-            self.train_batch(epochs=1, lr=lr, seq=i)
+            lr = lr - epochs*decay
+            self.train_batch(epochs=epochs, lr=lr, seq=i+1)
             self.predict_disparity()
 
     def train_all(self, epochs=400, lr=1e-3):
@@ -149,8 +173,14 @@ class Predictor(object):
             self.network = DenseMapNet(settings=self.settings)
             self.model = self.network.build_model(lr=lr)
 
-        self.model.compile(loss='binary_crossentropy',
-                           optimizer=RMSprop(lr=lr, decay=1e-6))
+        if self.settings.otanh:
+            print("Using loss=mse on tanh output layer")
+            self.model.compile(loss='mse',
+                               optimizer=RMSprop(lr=lr, decay=1e-6))
+        else:
+            print("Using loss=crossent on sigmoid output layer")
+            self.model.compile(loss='binary_crossentropy',
+                               optimizer=RMSprop(lr=lr, decay=1e-6))
 
         if self.settings.model_weights:
             if self.settings.notrain:
@@ -175,7 +205,11 @@ class Predictor(object):
 
         is_model_compiled = False
             
-        for i in range(1, count, 1):
+        indexes = np.arange(1,count)
+        np.random.shuffle(indexes)
+        
+        # for i in range(1, count, 1):
+        for i in indexes:
             filename = self.settings.dataset
             # filename += ".densemapnet.weights.{epoch:02d}.h5"
             filename += ".densemapnet.weights.%d-%d.h5" % (seq, i)
@@ -193,8 +227,14 @@ class Predictor(object):
                 self.model = self.network.build_model(lr=lr)
 
             if not is_model_compiled:
-                self.model.compile(loss='binary_crossentropy',
-                                   optimizer=RMSprop(lr=lr))
+                if self.settings.otanh:
+                    print("Using loss=mse on tanh output layer")
+                    self.model.compile(loss='mse',
+                                       optimizer=RMSprop(lr=lr, decay=1e-6))
+                else:
+                    print("Using loss=crossent on sigmoid output layer")
+                    self.model.compile(loss='binary_crossentropy',
+                                       optimizer=RMSprop(lr=lr, decay=1e-6))
                 is_model_compiled = True
 
             if self.settings.model_weights:
@@ -248,7 +288,7 @@ class Predictor(object):
         nsamples = lx.shape[0]
         elapsed_total = 0.0
         if self.settings.images:
-            print("Saving images on images folder...")
+            print("Saving images on folder...")
         for i in range(0, nsamples, 1):
             indexes = np.arange(i, i + 1)
             left_images = lx[indexes, :, :, : ]
@@ -263,24 +303,23 @@ class Predictor(object):
                 predicted_disparity = self.model.predict([left_images, right_images])
 
             predicted = predicted_disparity[0, :, :, :]
-            if self.settings.dataset == "kitti2015":
+            if self.settings.dataset == "sparse":
                 ground_mask = np.ceil(disparity_images[0, :, :, :])
                 predicted = np.multiply(predicted, ground_mask)
 
             ground = disparity_images[0, :, :, :]
             epe = predicted - ground
-            if self.settings.dataset == "kitti2015":
+            if self.settings.dataset == "sparse":
                 dim = np.count_nonzero(ground_mask)
             else:
                 dim = predicted.shape[0] * predicted.shape[1]
             # normalized error on all pixels
             epe = np.sum(np.absolute(epe))
-            epe = epe.astype('float32')
+            # epe = epe.astype('float32')
             epe = epe / dim
             epe_total += epe
 
-            # if i == 10: 
-            if get_performance and self.settings.images:
+            if (get_performance and self.settings.images) or ((i%100) == 0): 
                 path = "test"
                 if use_train_data:
                     path = "train"
@@ -300,7 +339,7 @@ class Predictor(object):
         epe = epe_total / nsamples 
         # epe in pix units
         epe = epe * self.dmax
-        if self.settings.dataset == "kitti2015":
+        if self.settings.dataset == "sparse":
             epe = epe / 256.0
         print("EPE: %0.2fpix" % epe)
         # speed in sec
@@ -310,8 +349,12 @@ class Predictor(object):
 
     def predict_images(self, image, filepath):
         size = [image.shape[0], image.shape[1]]
-        image =  np.clip(image, 0.0, 1.0)
-        image *= 255
+        if self.settings.otanh:
+            image =  np.clip(image, 0.0, 2.0)
+            image *= (255*0.5)
+        else:
+            image =  np.clip(image, 0.0, 1.0)
+            image *= 255
         image = image.astype(np.uint8)
         image = np.reshape(image, size)
         misc.imsave(filepath, image)
@@ -365,6 +408,21 @@ if __name__ == '__main__':
                         "--notrain",
                         action='store_true',
                         help=help_)
+    help_ = "Use hyperbolic tan in the output layer"
+    parser.add_argument("-o",
+                        "--otanh",
+                        action='store_true',
+                        help=help_)
+    help_ = "Sparse ground truth data"
+    parser.add_argument("-s",
+                        "--sparse",
+                        action='store_true',
+                        help=help_)
+    help_ = "No padding"
+    parser.add_argument("-a",
+                        "--nopadding",
+                        action='store_true',
+                        help=help_)
     
     
     args = parser.parse_args()
@@ -375,10 +433,9 @@ if __name__ == '__main__':
     settings.predict = args.predict
     settings.images = args.images
     settings.notrain = args.notrain
-    if settings.dataset == "kitti2015":
-        settings.nopadding = True
-    else:
-        settings.nopadding = False
+    settings.otanh = args.otanh
+    settings.sparse = args.sparse
+    settings.nopadding = args.nopadding
 
     predictor = Predictor(settings=settings)
     if settings.predict:

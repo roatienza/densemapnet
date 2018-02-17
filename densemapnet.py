@@ -112,7 +112,10 @@ class DenseMapNet(object):
         y = Conv2DTranspose(filters=1, kernel_size=9, padding='same')(y)
 
         # prediction
-        yout = Activation('sigmoid', name='disparity_output')(y)
+        if self.settings.otanh:
+            yout = Activation('tanh', name='disparity_output')(y)
+        else:
+            yout = Activation('sigmoid', name='disparity_output')(y)
 
         # densemapnet model
         self.model = Model([left, right],yout)
@@ -122,8 +125,13 @@ class DenseMapNet(object):
                   % self.settings.model_weights)
             self.model.load_weights(self.settings.model_weights)
 
-        self.model.compile(loss='binary_crossentropy',
-                           optimizer=RMSprop(lr=lr))
+        if self.settings.otanh:
+            self.model.compile(loss='binary_crossentropy',
+                               optimizer=RMSprop(lr=lr))
+        else:
+            self.model.compile(loss='mse',
+                               optimizer=RMSprop(lr=lr))
+
         print("DenseMapNet Model:")
         self.model.summary()
 
