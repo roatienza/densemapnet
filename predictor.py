@@ -14,7 +14,7 @@ from __future__ import print_function
 
 import keras
 from keras.callbacks import ModelCheckpoint, LambdaCallback
-from keras.optimizers import RMSprop
+from keras.optimizers import RMSprop, SGD
 
 import numpy as np
 
@@ -47,6 +47,8 @@ class Predictor(object):
         self.test_dx = np.load(os.path.join(self.pdir, filename))['arr_0']
         self.dmax =  max(self.dmax, np.amax(self.test_dx))
         self.dmin =  min(self.dmin, np.amin(self.test_dx))
+        self.sum += np.sum(self.test_dx, axis=0)
+        self.size += self.test_dx.shape[0]
         print("Max disparity on entire dataset: ", self.dmax)
         print("Min disparity on entire dataset: ", self.dmin)
         if self.settings.predict:
@@ -54,6 +56,9 @@ class Predictor(object):
             print("Loading... ", filename)
             self.test_dx = np.load(os.path.join(self.pdir, filename))['arr_0']
 
+        dim = self.test_dx.shape[1] * self.test_dx.shape[2]
+        self.ave = np.sum(self.sum / self.size) / dim
+        print("Ave disparity: ", self.ave)
         if self.settings.otanh:
             self.dmax *= 0.5 
             print("Max disparity for tanh: ", self.dmax)
@@ -61,12 +66,12 @@ class Predictor(object):
             self.test_dx = self.test_dx.astype('float32') / self.dmax
             print("Scaled disparity max: ", np.amax(self.test_dx))
             print("Scaled disparity min: ", np.amin(self.test_dx))
-            self.test_dx =  np.clip(self.test_dx, -1.0, 1.0)
+            # self.test_dx =  np.clip(self.test_dx, -1.0, 1.0)
         else:
             self.test_dx = self.test_dx.astype('float32') / self.dmax
             print("Scaled disparity max: ", np.amax(self.test_dx))
             print("Scaled disparity min: ", np.amin(self.test_dx))
-            self.test_dx =  np.clip(self.test_dx, 0.0, 1.0)
+            # self.test_dx =  np.clip(self.test_dx, 0.0, 1.0)
 
         shape = [-1, self.test_dx.shape[1], self.test_dx.shape[2], 1]
         self.test_dx = np.reshape(self.test_dx, shape)
@@ -74,6 +79,8 @@ class Predictor(object):
     def get_max_disparity(self):
         self.dmax = 0
         self.dmin = 255
+        self.sum = None
+        self.size = 0
         count = self.settings.num_dataset + 1
         for i in range(1, count, 1):
             filename = self.settings.dataset + ".train.disparity.%d.npz" % i
@@ -81,6 +88,11 @@ class Predictor(object):
             self.train_dx = np.load(os.path.join(self.pdir, filename))['arr_0']
             self.dmax =  max(self.dmax, np.amax(self.train_dx))
             self.dmin =  min(self.dmin, np.amin(self.train_dx))
+            if self.sum is None:
+                self.sum = np.sum(self.train_dx, axis=0)
+            else:
+                self.sum += np.sum(self.train_dx, axis=0)
+            self.size += self.train_dx.shape[0]
         self.load_test_disparity()
 
     def load_test_data(self):
@@ -120,12 +132,12 @@ class Predictor(object):
             self.train_dx = self.train_dx.astype('float32') / self.dmax
             print("Scaled disparity max: ", np.amax(self.train_dx))
             print("Scaled disparity min: ", np.amin(self.train_dx))
-            self.train_dx = np.clip(self.train_dx, -1.0, 1.0)
+            # self.train_dx = np.clip(self.train_dx, -1.0, 1.0)
         else:
             self.train_dx = self.train_dx.astype('float32') / self.dmax
             print("Scaled disparity max: ", np.amax(self.train_dx))
             print("Scaled disparity min: ", np.amin(self.train_dx))
-            self.train_dx = np.clip(self.train_dx, 0.0, 1.0)
+            # self.train_dx = np.clip(self.train_dx, 0.0, 1.0)
         shape =  [-1, self.train_dx.shape[1], self.train_dx.shape[2], 1]
         self.train_dx = np.reshape(self.train_dx, shape)
 
@@ -143,12 +155,20 @@ class Predictor(object):
             # if not starting from scratch, better to start at a lower lr
             # lr = 0.5e-4
 
-        decay = 1e-6
         epochs = 1
-        lr = 1e-3 + decay - (28 * decay)
+        if self.settings.otanh:
+            decay = 0 # 2e-6
+            lr = 1e-2 + decay
+        else:
+            decay = 1e-6
+            lr = 1e-3 + decay
         for i in range(400):
-            lr = lr - epochs*decay
-            self.train_batch(epochs=epochs, lr=lr, seq=i+1)
+            # if decay > 0:
+            #    k = i * decay
+            #    lr *= (1. / (1. + k))
+            lr = lr - decay
+            print("Epoch: ", (i+1), " Learning rate: ", lr)
+            self.train_batch(epochs=epochs, lr=lr, seq=(i+1))
             self.predict_disparity()
 
     def train_all(self, epochs=400, lr=1e-3):
@@ -228,9 +248,9 @@ class Predictor(object):
 
             if not is_model_compiled:
                 if self.settings.otanh:
+                    sgd = SGD(lr=lr, momentum=0.5, nesterov=True)
                     print("Using loss=mse on tanh output layer")
-                    self.model.compile(loss='mse',
-                                       optimizer=RMSprop(lr=lr, decay=1e-6))
+                    self.model.compile(loss='mse', optimizer=sgd)
                 else:
                     print("Using loss=crossent on sigmoid output layer")
                     self.model.compile(loss='binary_crossentropy',
@@ -350,6 +370,7 @@ class Predictor(object):
     def predict_images(self, image, filepath):
         size = [image.shape[0], image.shape[1]]
         if self.settings.otanh:
+            image += 1.0
             image =  np.clip(image, 0.0, 2.0)
             image *= (255*0.5)
         else:
