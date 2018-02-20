@@ -38,8 +38,24 @@ class Predictor(object):
         self.pdir = "dataset" 
         self.get_max_disparity()
         self.load_test_data()
+        self.load_mask()
         self.network  = None
         self.train_data_loaded = False
+        self.best_epe = self.settings.epe
+
+    def load_mask(self):
+        if self.settings.mask:
+            filename = self.settings.dataset + ".test.mask.npz"
+            print("Loading... ", filename)
+            self.test_mx = np.load(os.path.join(self.pdir, filename))['arr_0']
+            filename = self.settings.dataset + ".train.mask.1.npz"
+            print("Loading... ", filename)
+            self.train_mx = np.load(os.path.join(self.pdir, filename))['arr_0']
+
+            shape = [-1, self.test_mx.shape[1], self.test_mx.shape[2], 1]
+            self.test_mx = np.reshape(self.test_mx, shape)
+            shape = [-1, self.train_mx.shape[1], self.train_mx.shape[2], 1]
+            self.train_mx = np.reshape(self.train_mx, shape)
 
     def load_test_disparity(self):
         filename = self.settings.dataset + ".test.disparity.npz"
@@ -151,6 +167,10 @@ class Predictor(object):
             self.train_all()
             return
 
+        if self.settings.notrain:
+            self.train_batch()
+            return
+
         # if self.settings.model_weights:
             # if not starting from scratch, better to start at a lower lr
             # lr = 0.5e-4
@@ -171,7 +191,7 @@ class Predictor(object):
             self.train_batch(epochs=epochs, lr=lr, seq=(i+1))
             self.predict_disparity()
 
-    def train_all(self, epochs=400, lr=1e-3):
+    def train_all(self, epochs=1000, lr=1e-3):
         checkdir = "checkpoint"
         try:
             os.mkdir(checkdir)
@@ -215,7 +235,7 @@ class Predictor(object):
                        shuffle=True,
                        callbacks=callbacks)
 
-    def train_batch(self, epochs=10, lr=1e-3, seq=1):
+    def train_batch(self, epochs=1, lr=1e-3, seq=1):
         count = self.settings.num_dataset + 1
         checkdir = "checkpoint"
         try:
@@ -291,11 +311,17 @@ class Predictor(object):
             lx = self.train_lx
             rx = self.train_rx
             dx = self.train_dx
+            if self.settings.mask:
+                print("Using mask images")
+                mx = self.train_mx
             print("Using train data... Size: ", lx.shape[0])
         else:
             lx = self.test_lx
             rx = self.test_rx
             dx = self.test_dx
+            if self.settings.mask:
+                print("Using mask images")
+                mx = self.test_mx
             if self.settings.predict:
                 print("Using complete data... Size: ", lx.shape[0])
             else:
@@ -314,6 +340,7 @@ class Predictor(object):
             left_images = lx[indexes, :, :, : ]
             right_images = rx[indexes, :, :, : ]
             disparity_images = dx[indexes, :, :, : ]
+            mask_images = mx[indexes, :, :, : ]
             # measure the speed of prediction on the 10th sample to avoid variance
             if get_performance:
                 start_time = time.time()
@@ -323,16 +350,19 @@ class Predictor(object):
                 predicted_disparity = self.model.predict([left_images, right_images])
 
             predicted = predicted_disparity[0, :, :, :]
-            if self.settings.dataset == "sparse":
-                ground_mask = np.ceil(disparity_images[0, :, :, :])
-                predicted = np.multiply(predicted, ground_mask)
+            # if self.settings.mask:
+            # ground_mask = np.ceil(mask_images[0, :, :, :])
+            # predicted = np.multiply(predicted, ground_mask)
 
             ground = disparity_images[0, :, :, :]
-            epe = predicted - ground
-            if self.settings.dataset == "sparse":
+            if self.settings.mask:
+                ground_mask = mask_images[0, :, :, :]
                 dim = np.count_nonzero(ground_mask)
+                nz = np.nonzero(ground_mask)
+                epe = predicted[nz] - ground[nz]
             else:
                 dim = predicted.shape[0] * predicted.shape[1]
+                epe = predicted - ground
             # normalized error on all pixels
             epe = np.sum(np.absolute(epe))
             # epe = epe.astype('float32')
@@ -350,18 +380,39 @@ class Predictor(object):
                 prediction = os.path.join(filepath, "prediction")
                 filename = "%04d.png" % i
                 left = os.path.join(left, filename)
-                plt.imsave(left, left_images[0])
+                if left_images[0].shape[2] == 1:
+                    self.predict_images(left_images[0], left)
+                else:
+                    plt.imsave(left, left_images[0])
+
                 right = os.path.join(right, filename)
-                plt.imsave(right, right_images[0])
+                if right_images[0].shape[2] == 1:
+                    self.predict_images(right_images[0], right)
+                else:
+                    plt.imsave(right, right_images[0])
                 self.predict_images(predicted, os.path.join(prediction, filename))
                 self.predict_images(ground, os.path.join(disparity, filename))
 
         epe = epe_total / nsamples 
         # epe in pix units
         epe = epe * self.dmax
-        if self.settings.dataset == "sparse":
+        if self.settings.dataset == "kitti2015":
             epe = epe / 256.0
-        print("EPE: %0.2fpix" % epe)
+            print("KITTI 2015 EPE: ", epe)
+        else:
+            print("EPE: %0.2fpix" % epe)
+        if epe < self.best_epe:
+            self.best_epe = epe
+            print("------------------- BEST EPE : %f ---------------------" % epe)
+            tmpdir = "tmp"
+            try:
+                os.mkdir(tmpdir)
+            except FileExistsError:
+                print("Folder exists: ", tmpdir)
+            filename = open('tmp/epe.txt', 'a')
+            datetime = time.strftime("%H:%M:%S")
+            filename.write("%s : %s EPE: %f\n" % (datetime, self.settings.dataset, epe))
+            filename.close()
         # speed in sec
         if get_performance:
             print("Speed: %0.4fsec" % (elapsed_total / nsamples))
@@ -376,6 +427,7 @@ class Predictor(object):
         else:
             image =  np.clip(image, 0.0, 1.0)
             image *= 255
+
         image = image.astype(np.uint8)
         image = np.reshape(image, size)
         misc.imsave(filepath, image)
@@ -434,16 +486,22 @@ if __name__ == '__main__':
                         "--otanh",
                         action='store_true',
                         help=help_)
-    help_ = "Sparse ground truth data"
-    parser.add_argument("-s",
-                        "--sparse",
-                        action='store_true',
+    help_ = "Best EPE"
+    parser.add_argument("-e",
+                        "--epe",
+                        type=float,
                         help=help_)
     help_ = "No padding"
     parser.add_argument("-a",
                         "--nopadding",
                         action='store_true',
                         help=help_)
+    help_ = "Mask images for sparse data"
+    parser.add_argument("-m",
+                        "--mask",
+                        action='store_true',
+                        help=help_)
+    
     
     
     args = parser.parse_args()
@@ -455,8 +513,9 @@ if __name__ == '__main__':
     settings.images = args.images
     settings.notrain = args.notrain
     settings.otanh = args.otanh
-    settings.sparse = args.sparse
+    settings.epe = args.epe
     settings.nopadding = args.nopadding
+    settings.mask = args.mask
 
     predictor = Predictor(settings=settings)
     if settings.predict:
