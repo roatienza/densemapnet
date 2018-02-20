@@ -45,17 +45,22 @@ class Predictor(object):
 
     def load_mask(self):
         if self.settings.mask:
-            filename = self.settings.dataset + ".test.mask.npz"
-            print("Loading... ", filename)
-            self.test_mx = np.load(os.path.join(self.pdir, filename))['arr_0']
-            filename = self.settings.dataset + ".train.mask.1.npz"
-            print("Loading... ", filename)
-            self.train_mx = np.load(os.path.join(self.pdir, filename))['arr_0']
+            if self.settings.predict:
+                filename = self.settings.dataset + "_complete.test.mask.npz"
+                print("Loading... ", filename)
+                self.test_mx = np.load(os.path.join(self.pdir, filename))['arr_0']
+            else:
+                filename = self.settings.dataset + ".test.mask.npz"
+                print("Loading... ", filename)
+                self.test_mx = np.load(os.path.join(self.pdir, filename))['arr_0']
+                filename = self.settings.dataset + ".train.mask.1.npz"
+                print("Loading... ", filename)
+                self.train_mx = np.load(os.path.join(self.pdir, filename))['arr_0']
+                shape = [-1, self.train_mx.shape[1], self.train_mx.shape[2], 1]
+                self.train_mx = np.reshape(self.train_mx, shape)
 
             shape = [-1, self.test_mx.shape[1], self.test_mx.shape[2], 1]
             self.test_mx = np.reshape(self.test_mx, shape)
-            shape = [-1, self.train_mx.shape[1], self.train_mx.shape[2], 1]
-            self.train_mx = np.reshape(self.train_mx, shape)
 
     def load_test_disparity(self):
         filename = self.settings.dataset + ".test.disparity.npz"
@@ -126,7 +131,8 @@ class Predictor(object):
             filename = self.settings.dataset + ".test.right.npz"
             print("Loading... ", filename)
             self.test_rx = np.load(os.path.join(self.pdir, filename))['arr_0']
-        self.channels = self.settings.channels
+        # self.channels = self.settings.channels
+        self.channels = self.settings.channels = self.test_lx.shape[3]
         self.xdim = self.settings.xdim = self.test_lx.shape[2]
         self.ydim = self.settings.ydim = self.test_lx.shape[1]
 
@@ -164,7 +170,7 @@ class Predictor(object):
 
     def train_network(self):
         if self.settings.num_dataset == 1:
-            self.train_all()
+            self.train_all(lr=2e-4, epochs=1000)
             return
 
         if self.settings.notrain:
@@ -181,8 +187,8 @@ class Predictor(object):
             lr = 1e-2 + decay
         else:
             decay = 1e-6
-            lr = 1e-3 + decay
-        for i in range(400):
+            lr = 2e-4 + decay
+        for i in range(10):
             # if decay > 0:
             #    k = i * decay
             #    lr *= (1. / (1. + k))
@@ -220,7 +226,7 @@ class Predictor(object):
         else:
             print("Using loss=crossent on sigmoid output layer")
             self.model.compile(loss='binary_crossentropy',
-                               optimizer=RMSprop(lr=lr, decay=1e-6))
+                               optimizer=RMSprop(lr=lr, decay=1e-7))
 
         if self.settings.model_weights:
             if self.settings.notrain:
@@ -340,7 +346,8 @@ class Predictor(object):
             left_images = lx[indexes, :, :, : ]
             right_images = rx[indexes, :, :, : ]
             disparity_images = dx[indexes, :, :, : ]
-            mask_images = mx[indexes, :, :, : ]
+            if self.settings.mask:
+                mask_images = mx[indexes, :, :, : ]
             # measure the speed of prediction on the 10th sample to avoid variance
             if get_performance:
                 start_time = time.time()
