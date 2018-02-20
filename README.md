@@ -4,7 +4,13 @@ Keras code for my paper on **_"Fast Disparity Estimation using Dense Networks"_*
 **_DenseMapNet_** is a tiny network (only 293k parameters) that can predict disparity (hence, depth) in real-time speed (>30Hz on NVIDIA 1080Ti) given stereo images of resolution of 960 x 540 RGB.
 
 Sample predictions on different datasets: 
-![alt text](https://github.com/roatienza/densemapnet/blob/master/media/Driving.png "Sample predictions")
+![Sample predictions](https://github.com/roatienza/densemapnet/blob/master/media/Driving.png)
+
+# Demo
+
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=kb7zZ2VqRBg
+" target="_blank"><img src="http://img.youtube.com/vi/kb7zZ2VqRBg/0.jpg" 
+alt="DenseMapNet Demo" width="640" height="360" border="10" /></a>
 
 ## Dataset
 Download datasets:
