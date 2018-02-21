@@ -170,28 +170,21 @@ class Predictor(object):
 
     def train_network(self):
         if self.settings.num_dataset == 1:
-            self.train_all(lr=2e-4, epochs=1000)
+            self.train_all()
             return
 
         if self.settings.notrain:
             self.train_batch()
             return
 
-        # if self.settings.model_weights:
-            # if not starting from scratch, better to start at a lower lr
-            # lr = 0.5e-4
-
         epochs = 1
         if self.settings.otanh:
-            decay = 0 # 2e-6
+            decay = 2e-6
             lr = 1e-2 + decay
         else:
             decay = 1e-6
             lr = 2e-4 + decay
-        for i in range(10):
-            # if decay > 0:
-            #    k = i * decay
-            #    lr *= (1. / (1. + k))
+        for i in range(400):
             lr = lr - decay
             print("Epoch: ", (i+1), " Learning rate: ", lr)
             self.train_batch(epochs=epochs, lr=lr, seq=(i+1))
@@ -226,7 +219,7 @@ class Predictor(object):
         else:
             print("Using loss=crossent on sigmoid output layer")
             self.model.compile(loss='binary_crossentropy',
-                               optimizer=RMSprop(lr=lr, decay=1e-7))
+                               optimizer=RMSprop(lr=lr, decay=1e-6))
 
         if self.settings.model_weights:
             if self.settings.notrain:
