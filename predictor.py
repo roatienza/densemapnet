@@ -41,7 +41,10 @@ class Predictor(object):
         self.load_mask()
         self.network  = None
         self.train_data_loaded = False
-        self.best_epe = self.settings.epe
+        if self.settings.epe:
+            self.best_epe = self.settings.epe
+        else:
+            self.best_epe = 100.0
 
     def load_mask(self):
         if self.settings.mask:
@@ -170,7 +173,7 @@ class Predictor(object):
 
     def train_network(self):
         if self.settings.num_dataset == 1:
-            self.train_all()
+            self.train_all(lr=3e-4, epochs=2000)
             return
 
         if self.settings.notrain:
@@ -183,7 +186,7 @@ class Predictor(object):
             lr = 1e-2 + decay
         else:
             decay = 1e-6
-            lr = 2e-4 + decay
+            lr = 5e-4 + decay
         for i in range(400):
             lr = lr - decay
             print("Epoch: ", (i+1), " Learning rate: ", lr)
