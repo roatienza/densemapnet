@@ -21,6 +21,7 @@ from keras.optimizers import RMSprop
 from keras.callbacks import ModelCheckpoint, LambdaCallback
 from keras.models import load_model, Model
 from keras.layers.pooling import MaxPooling2D
+from keras.utils import plot_model
 
 import numpy as np
 from utils import Settings
@@ -134,5 +135,6 @@ class DenseMapNet(object):
 
         print("DenseMapNet Model:")
         self.model.summary()
+        plot_model(self.model, to_file='densemapnet.png', show_shapes=True)
 
         return self.model

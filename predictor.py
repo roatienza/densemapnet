@@ -173,7 +173,7 @@ class Predictor(object):
 
     def train_network(self):
         if self.settings.num_dataset == 1:
-            self.train_all(lr=3e-4, epochs=2000)
+            self.train_all()
             return
 
         if self.settings.notrain:
@@ -186,7 +186,7 @@ class Predictor(object):
             lr = 1e-2 + decay
         else:
             decay = 1e-6
-            lr = 5e-4 + decay
+            lr = 1e-3 + decay
         for i in range(400):
             lr = lr - decay
             print("Epoch: ", (i+1), " Learning rate: ", lr)
