@@ -8,8 +8,8 @@ Keras code of **_"Fast Disparity Estimation using Dense Networks"_** paper to be
 
 ## Demo
 
-<a href="http://www.youtube.com/watch?feature=player_embedded&v=kb7zZ2VqRBg
-" target="_blank"><img src="http://img.youtube.com/vi/kb7zZ2VqRBg/0.jpg" 
+<a href="http://www.youtube.com/watch?feature=player_embedded&v=NBL-hFQRh4k
+" target="_blank"><img src="http://img.youtube.com/vi/NBL-hFQRh4k/0.jpg" 
 alt="DenseMapNet Demo" width="640" height="360" border="10" /></a>
 
 ## Dataset
