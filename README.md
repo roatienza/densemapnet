@@ -1,7 +1,7 @@
 # DenseMapNet
-Keras code of **_"Fast Disparity Estimation using Dense Networks"_** paper to be presented at the International Conference on Robotics and Automation, Australia, 2018 (ICRA 2018)
+Keras code of **_"Fast Disparity Estimation using Dense Networks"_** in Proc. International Conference on Robotics and Automation, Australia, 2018 (ICRA 2018)
 
-**_DenseMapNet_** is a tiny network (only 290k parameters) that can predict disparity in real-time speed (>=30Hz on NVIDIA 1080Ti GPU) using full resolution of stereo images.
+**_DenseMapNet_** is a tiny network (only 290k parameters) that can predict disparity in real-time speed (>=30Hz on NVIDIA 1080Ti GPU) using full resolution of stereo images with high accuracy (low End-Point-Error).
 
 ### Sample predictions on different datasets: ###
 ![Sample predictions](https://github.com/roatienza/densemapnet/blob/master/media/Driving.png)
@@ -53,3 +53,19 @@ To generate disparity predictions on both train and test datasets (complete sequ
 
 `python3 predictor.py --dataset=driving --num_dataset=4 --weights=checkpoint/driving.densemapnet.weights.h5 --predict
 --images`
+
+## Citation
+If you find this work useful, please cite:
+
+```
+@conference{Atienza18,
+  title = {Fast Disparity Estimation using Dense Networks},
+  author = {Atienza, Rowel},
+  booktitle = {Proceedings 2018 IEEE International Conference on Robotics and Automation (ICRA)},
+  publisher = {IEEE},
+  address = {Piscataway, NJ, USA},
+  month = May,
+  year = {2018},
+  month_numeric = {5}
+}
+```
