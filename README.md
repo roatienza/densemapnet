@@ -7,8 +7,11 @@ Keras code of **_"Fast Disparity Estimation using Dense Networks"_** paper at th
 - Tiny network with only 290k parameters 
 - Accurate with Low End-Point-Error or EPE
 
-### Sample predictions on different datasets: ###
+### Sample Predictions ###
+#### Driving, Monkaa, and Flying Datasets ####
 ![Driving, Monkaa and Flying datasets](media/Driving-Monkaa-Flying.png)
+#### KITTI 2015 ####
+![KITTI 2015](media/KITTI2015.png)
 
 ## Demo
 
