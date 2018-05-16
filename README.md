@@ -8,7 +8,7 @@ Keras code of **_"Fast Disparity Estimation using Dense Networks"_** paper at th
 - Accurate with Low End-Point-Error or EPE
 
 ### Sample predictions on different datasets: ###
-![Sample predictions](https://github.com/roatienza/densemapnet/blob/master/media/Driving.png)
+![Driving, Monkaa and Flying datasets](media/Driving-Monkaa-Flying.png)
 
 ## Demo
 
