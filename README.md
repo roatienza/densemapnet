@@ -1,5 +1,5 @@
 # DenseMapNet
-Keras code of **_"Fast Disparity Estimation using Dense Networks"_** paper at the [International Conference on Robotics and Automation, Australia, 2018 (ICRA 2018)](http://icra2018.org/).
+Keras code of **_"Fast Disparity Estimation using Dense Networks"_** in the proceedings of [International Conference on Robotics and Automation, Australia, 2018 (ICRA 2018)](http://icra2018.org/).
 
 The paper can be downloaded [here](https://arxiv.org/pdf/1805.07499.pdf).
 
