@@ -67,14 +67,12 @@ To generate disparity predictions on both train and test datasets (complete sequ
 If you find this work useful, please cite:
 
 ```
-@conference{Atienza18,
-  title = {Fast Disparity Estimation using Dense Networks},
-  author = {Atienza, Rowel},
-  booktitle = {Proceedings 2018 IEEE International Conference on Robotics and Automation (ICRA)},
-  publisher = {IEEE},
-  address = {Piscataway, NJ, USA},
-  month = May,
-  year = {2018},
-  month_numeric = {5}
+@inproceedings{atienza2018fast,
+  title={Fast Disparity Estimation using Dense Networks},
+  author={Atienza, Rowel},
+  booktitle={2018 IEEE International Conference on Robotics and Automation (ICRA)},
+  pages={3207--3212},
+  year={2018},
+  organization={IEEE}
 }
 ```
